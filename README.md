@@ -1,265 +1,195 @@
 # Multi-Disease Detection Framework — Deep Neural Networks & Multimodal AI
 
-A hybrid clinical-decision-**support** framework that pairs your trained **custom CNN**
-(94.82% validation accuracy across **30 disease classes**) with an **LLM reasoning layer**.
-The CNN is the *perception* engine; **Claude** is the *reasoning* engine, enriched by three
-**contextual-memory sources** — a structured Knowledge Base, **Microsoft BioGPT**, and
-**Med-PaLM 2** — to turn a raw softmax vector into a calibrated, source-attributed,
-safety-bounded interpretation.
+A hybrid clinical-decision-**support** framework that pairs a trained **custom CNN** (94.82% validation accuracy across **30 disease classes**) with a **high-speed LLM reasoning layer**.
 
-It ships as an **interactive web application** you can actually test in the browser:
-drag in a medical image → get the CNN prediction, a **Grad-CAM** attention heatmap, the
-LLM's contextual reasoning, a **prediction history log**, and a one-click **PDF clinical report**.
+The CNN acts as the *perception* engine; **Groq Cloud LLM** (`openai/gpt-oss-120b`) and **Claude** act as the *reasoning* engine, enriched by three **contextual-memory sources** — a structured Knowledge Base, **Microsoft BioGPT**, and **Med-PaLM 2** — to turn a raw softmax vector into a calibrated, source-attributed, safety-bounded interpretation.
+
+Ships as an **interactive web application**: drag in a medical image → get the CNN prediction, a **Grad-CAM** attention heatmap, the LLM's contextual reasoning, a **prediction history log**, and a one-click **downloadable clinical PDF report**.
 
 > ⚠️ **Research / educational prototype — not a medical device.** Every output is decision-support, never a diagnosis.
 
 ---
 
-## What's inside
+## 🌐 Live Production Cloud Deployment
+
+The application is deployed live in **AWS Mumbai (`ap-south-1`)**:
+
+| Attribute | Production Configuration |
+|---|---|
+| **Live Web Console** | **[https://deepdx.myvnc.com](https://deepdx.myvnc.com)** 🔒 *(HTTPS with trusted SSL)* |
+| **API Health Status** | **[https://deepdx.myvnc.com/api/health](https://deepdx.myvnc.com/api/health)** |
+| **Permanent Static IP** | `65.2.235.24` *(AWS Elastic IP)* |
+| **Cloud Infrastructure** | AWS EC2 `m7i-flex.large` (2 vCPUs, 8 GB RAM, 4th Gen Intel Xeon) |
+| **Model Storage** | AWS S3 (`deepdx-models-production-dbmbzc`), AES-256 encrypted |
+| **SSL/TLS Reverse Proxy**| Caddy Reverse Proxy with automated Let's Encrypt SSL certificates |
+| **IaC Provisioning** | Terraform (`terraform/` directory) |
+| **Cloud Region** | AWS Mumbai (`ap-south-1`) |
+
+---
+
+## Repository Structure
 
 ```
-multi-disease-detection-app/
+DeepDx-Multi-Disease-Detection-Framework/
 ├── app/
-│   ├── main.py                 # FastAPI app: /api/health, /api/analyze, /api/report, serves the UI
-│   ├── config.py               # settings from .env (pydantic-settings)
-│   ├── schemas.py              # pydantic request/response models
+│   ├── main.py                 # FastAPI application: /api/health, /api/analyze, /api/report
+│   ├── config.py               # Central settings from .env (pydantic-settings)
+│   ├── schemas.py              # Pydantic request/response models
 │   ├── ml/
-│   │   ├── cnn_model.py        # your Cell-10 architecture, weight loading, demo mode, predict()
-│   │   └── gradcam.py          # Grad-CAM heatmap + plain-English "where the model looked"
+│   │   ├── cnn_model.py        # Custom 5-block CNN architecture, weight loading, predict()
+│   │   └── gradcam.py          # Grad-CAM heatmap generator + plain-English localization
 │   ├── llm/
-│   │   ├── prompts.py          # the prompt engineering (system + synthesis prompt)
-│   │   ├── claude_client.py    # Anthropic call + robust JSON extraction
-│   │   ├── disease_metadata.py # structured Knowledge Base for all 30 classes  [KB]
-│   │   ├── biogpt_adapter.py   # Microsoft BioGPT source (real via HF, else curated fallback) [BioGPT]
-│   │   ├── medpalm_adapter.py  # Med-PaLM 2 source (labeled placeholder; Vertex MedLM path documented) [Med-PaLM]
-│   │   └── orchestrator.py     # coordinates the 3 memory sources + Claude, with rule-based fallback
+│   │   ├── groq_client.py      # Sub-second live clinical reasoning via Groq Cloud API
+│   │   ├── claude_client.py    # Anthropic Claude 3.5/Sonnet integration + JSON extractor
+│   │   ├── disease_metadata.py # Structured Knowledge Base for all 30 disease classes [KB]
+│   │   ├── biogpt_adapter.py   # Microsoft BioGPT source adapter [BioGPT]
+│   │   ├── medpalm_adapter.py  # Med-PaLM 2 clinical Q&A source adapter [Med-PaLM]
+│   │   ├── orchestrator.py     # Coordinates memory sources + LLM reasoning synthesis
+│   │   └── prompts.py          # Multimodal medical system & synthesis prompts
 │   └── report/
-│       └── pdf_report.py       # clinical PDF export (reportlab)
-├── frontend/                   # vanilla HTML/CSS/JS "diagnostic console" (no build step)
+│       └── pdf_report.py       # Clinical diagnostic PDF export (ReportLab)
+├── frontend/                   # Modern clinical workstation console (Vanilla HTML/CSS/JS)
+│   ├── index.html              # 2-column clinical dashboard (Acquisition & Readout)
+│   ├── style.css               # Clean responsive styling with CSS tokens
+│   └── app.js                  # Frontend state machine & API client
 ├── models/
-         └──best_model.weights.h5
-         └──readme.md                   
+│   ├── best_model.weights.h5   # Trained CNN weights (105.7 MB)
+│   └── readme.md               # Model architecture & evaluation notes
+├── terraform/                  # Production Infrastructure-as-Code (AWS Mumbai)
+│   ├── main.tf                 # S3 bucket, IAM Role, Security Group, EC2, Elastic IP
+│   ├── variables.tf            # Region (ap-south-1), instance type (m7i-flex.large)
+│   ├── outputs.tf              # S3 URI, EC2 Static IP, live HTTPS URL
+│   ├── user_data.sh.tpl        # Automated cloud-init bootstrapping script
+│   ├── upload_model.bat        # Windows one-click model weights S3 uploader
+│   ├── upload_model.sh         # Linux/Mac model weights S3 uploader
+│   └── README.md               # Complete Terraform deployment guide
 ├── tools/
-│   └── export_class_names_snippet.py   # run in your Colab to regenerate the authoritative class_names.json
-├── class_names.json            # ordered label list (index -> class) — VERIFY THIS (see below)
-├── pyproject.toml              # uv-managed dependencies
-├── .python-version             # 3.13
-└── .env.example                # copy to .env and add your key
+│   └── export_class_names_snippet.py   # Colab script to export class_names.json
+├── class_names.json            # Ordered 30-class label list (index -> disease name)
+├── docker-compose.yml          # Docker Compose production container configuration
+├── Dockerfile                  # Multi-stage container build with Python 3.11 & uv
+├── pyproject.toml              # uv/pip dependencies
+├── .env.example                # Template configuration file
+├── sample_output.md            # Sample clinical reasoning outputs
+└── sample_prompt.md            # Sample multimodal prompts and LLM inputs
 ```
 
 ---
 
-## ⭐ 3 things I need from you (important)
+## 30 Supported Clinical Pathology Classes
 
-The app **runs immediately in demo mode** without any of these, but for *real* results:
+The CNN classifier and medical knowledge base cover 30 classes across major organ systems:
 
-### 1. Add your Anthropic API key
-Claude powers the reasoning layer. Copy the example env file and paste your key:
-
-```bash
-cp .env.example .env
-```
-
-Then open `.env` and set:
-
-```
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Without a valid `sk-ant-...` key the app still works, but the interpretation comes from the
-built-in **rule-based fallback** instead of Claude (the UI shows "claude offline").
-
-### 2. Drop your trained weights into `models/`
-Copy your file so the path matches `.env` (`CNN_WEIGHTS_PATH=models/best_model.weights.h5`):
-
-```
-models/best_model.weights.h5
-```
-
-Without it, predictions are **simulated (demo mode)** — the UI clearly flags this with a banner.
-
-### 3. ✅ Verify `class_names.json` matches your training label order  ← most important
-This is the one thing I could **not** fully confirm from the notebook. Your CNN outputs a vector of
-30 probabilities; index *i* only means something if `class_names.json[i]` is the label that index
-was trained on. In your notebook the order came from `sorted(df['label'].unique())`
-(Python case-sensitive sort — **uppercase before lowercase**). I reconstructed that list, but a few
-leaf-label spellings were guesses.
-
-**To generate the authoritative file**, run the snippet in `tools/export_class_names_snippet.py`
-inside your Colab/training notebook (where `df` exists) and replace `class_names.json`:
-
-```python
-# in your notebook, after df is built:
-import json
-class_names = sorted(df['label'].unique())          # EXACT training order
-json.dump(class_names, open('class_names.json', 'w'), indent=2)
-print(len(class_names), "classes written")
-```
-
-Download that `class_names.json` and drop it in the project root. If the order is wrong, the model
-will still run but labels will be **mismatched**, so please do this before trusting any real prediction.
+- **Brain MRI**: `brain_glioma`, `brain_meningioma`, `brain_pituitary`
+- **Alzheimer's Neuroimaging**: `Alzheimers_MildDemented`, `Alzheimers_ModerateDemented`, `Alzheimers_NonDemented`, `Alzheimers_VeryMildDemented`
+- **Lung Histopathology**: `lung_adenocarcinoma`, `lung_benign_tissue`, `lung_squamous_cell_carcinoma`
+- **Breast Histopathology**: `breast_benign`, `breast_malignant`
+- **Colon Histopathology**: `colon_adenocarcinoma`, `colon_benign_tissue`
+- **Kidney Histopathology**: `kidney_normal`, `kidney_tumor`
+- **Oral Pathology**: `oral_normal`, `oral_squamous_cell_carcinoma`
+- **Cervical Cytology**: `cervix_dyskeratotic`, `cervix_koilocytotic`, `cervix_metaplastic`, `cervix_parabasal`, `cervix_superficial_intermediate`
+- **Lymphoma**: `lymph_chronic_lymphocytic_leukemia`, `lymph_follicular_lymphoma`, `lymph_mantle_cell_lymphoma`
+- **Acute Lymphoblastic Leukemia**: `all_benign`, `all_early`, `all_pre`, `all_pro`
 
 ---
 
-## Run it in VS Code with `uv` (step by step)
+## How the Hybrid Reasoning Pipeline Works
 
-This project uses [**uv**](https://docs.astral.sh/uv/) — a fast Python package manager — **not pip**.
+```
+   Medical Image ─► Custom CNN (Perception) ─► Top-k Probabilities + Grad-CAM Attention
+                                                         │
+                ┌────────────────────────────────────────┼────────────────────────────────────────┐
+                ▼                                        ▼                                        ▼
+          [KB] Knowledge Base                      [BioGPT] Biomedical                      [Med-PaLM] Clinical
+     (organ, modality, severity)                   narrative context                        workup context
+                └────────────────────────────────────────┼────────────────────────────────────────┘
+                                                         ▼
+                                          Groq LLM Reasoning Synthesis
+                                             (openai/gpt-oss-120b)
+                                                         ▼
+                                Calibrated, Source-Attributed Clinical Report
+                                                         ▼
+                               Web Console  +  Downloadable Clinical PDF Report
+```
 
-### Step 1 — Open the project directory
+---
 
+## Local Development Setup
+
+### 1. Prerequisites
+- Python 3.11 or 3.12
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager) or Docker
+
+### 2. Clone & Install
 ```bash
+git clone https://github.com/tushargirinath/DeepDx-Multi-Disease-Detection-Framework-using-Deep-Neural-Networks-Multimodal-AI.git
 cd DeepDx-Multi-Disease-Detection-Framework
-```
 
-### Step 2 — Install uv (once, if you don't have it)
-
-**Windows (PowerShell):**
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-**macOS / Linux:**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Confirm installation:
-
-```bash
-uv --version
-```
-
-### Step 3 — Install dependencies
-
-Run this command from the project root:
-
-```bash
+# Install dependencies using uv
 uv sync
 ```
 
-### Step 4 — Configure your API key
-
-Create your `.env` file:
-
+### 3. Configure Environment
 ```bash
-cp .env.example .env      # macOS / Linux
-copy .env.example .env    # Windows
+cp .env.example .env
 ```
-
-Open `.env` and configure your **Groq Cloud API key** (recommended for sub-second live clinical reasoning):
-
+Edit `.env` and add your **Groq Cloud API Key** (free at [console.groq.com](https://console.groq.com)):
 ```env
-GROQ_API_KEY=gsk_your_actual_key_here
+GROQ_API_KEY=gsk_your_groq_api_key_here
 GROQ_MODEL=openai/gpt-oss-120b
+CNN_WEIGHTS_PATH=models/best_model.weights.h5
+CLASS_NAMES_PATH=class_names.json
 ```
 
-*(Optional: Anthropic Claude and OpenRouter keys are also supported).*
+### 4. Run the Server
+```bash
+# Direct execution:
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-### Step 5 — Configure the trained model
-
-Ensure your trained model weights are available at:
-
-```text
-models/best_model.weights.h5
+# Or via Docker Compose:
+docker compose up -d --build
 ```
+Open **`http://localhost:8000`** in your browser.
 
-Verify that `class_names.json` in the project root matches the class order used during training.
+---
 
-### Step 6 — Start the application
+## AWS Cloud Deployment (Terraform)
 
-**Native via uv:**
+The complete AWS infrastructure is automated via Terraform in the [terraform/](terraform/) directory:
 
 ```bash
-uv run python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd terraform
+
+# 1. Initialize AWS providers
+terraform init
+
+# 2. Preview resources (S3, EC2, IAM, Security Group, Elastic IP)
+terraform plan
+
+# 3. Provision infrastructure in Mumbai (ap-south-1)
+terraform apply
+
+# 4. Upload model weights to S3
+./upload_model.bat    # Windows
+./upload_model.sh     # Linux / Mac
 ```
 
-**Or with Docker Compose:**
-
-```bash
-docker compose up --build
-```
-
-### Step 7 — Open the application
-
-Once the server starts, open:
-
-* **Web application:** http://localhost:8000/
-* **Interactive API documentation:** http://localhost:8000/docs
-* **Alternative API documentation:** http://localhost:8000/redoc
-
-
-
-## Optional — enable the *real* BioGPT model
-
-By default BioGPT returns curated, clearly-labeled biomedical context (fast, no download). To run
-the actual **Microsoft BioGPT** locally (adds `torch` + `transformers`, ~1.5 GB on first use):
-
-```bash
-uv sync --extra biogpt
-```
-
-Then set `ENABLE_BIOGPT=true` in `.env` and restart. (Med-PaLM 2 has no public API — it stays a
-labeled placeholder; the real Google **Vertex AI MedLM** wiring is sketched in `medpalm_adapter.py`.)
+For complete cloud deployment documentation, see [terraform/README.md](terraform/README.md).
 
 ---
 
-## How the reasoning pipeline works
+## REST API Reference
 
-```
-   image ─► CNN (perception) ─► top-k probabilities + Grad-CAM attention
-                                          │
-              ┌───────────────────────────┼───────────────────────────┐
-              ▼                            ▼                           ▼
-        [KB] knowledge base          [BioGPT] biomedical         [Med-PaLM] clinical-QA
-        (organ, modality,             narrative context           workup context
-         category, severity)                                       (placeholder)
-              └───────────────────────────┼───────────────────────────┘
-                                          ▼
-                            Claude  (reasoning / synthesis)
-                                          ▼
-              calibrated, source-attributed, safety-bounded JSON interpretation
-                                          ▼
-                       web console  +  downloadable PDF clinical report
-```
-
-If Claude is unavailable (no key/offline), a deterministic **rule-based fallback** produces the same
-JSON shape, so the UI always shows a complete result.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Serves the web clinical console UI |
+| `GET` | `/api/health` | Returns health status, loaded weights info, and LLM availability |
+| `POST` | `/api/analyze` | Multipart medical image + patient fields → CNN prediction, Grad-CAM, LLM reasoning |
+| `POST` | `/api/report` | Analysis JSON payload → Downloadable clinical PDF report |
 
 ---
 
-## Features you asked for
+## License & Disclaimer
 
-- **Grad-CAM heatmaps** — visual "where the model looked", with a heatmap/original toggle.
-- **Patient context input** — age, sex, symptoms, history, notes feed the reasoning layer.
-- **PDF report export** — one-click clinical-style report (prediction ladder, Grad-CAM, interpretation).
-- **Prediction history log** — every analysis in the session is kept; click to revisit.
-
----
-
-## API quick reference
-
-| Method | Route           | Purpose                                                      |
-|--------|-----------------|--------------------------------------------------------------|
-| GET    | `/api/health`   | model + LLM source status (used by the status pills)         |
-| POST   | `/api/analyze`  | multipart image (+ patient fields) → prediction, Grad-CAM, interpretation |
-| POST   | `/api/report`   | analysis JSON → downloadable PDF                             |
-| GET    | `/`             | the web console                                              |
-
----
-
-## Troubleshooting
-
-- **"claude offline" pill / fallback reasoning** — check `ANTHROPIC_API_KEY` in `.env` starts with `sk-ant-`.
-- **"demo mode" banner** — weights not found; confirm `models/best_model.weights.h5` exists and `CNN_WEIGHTS_PATH` matches.
-- **Labels look wrong** — regenerate `class_names.json` from your notebook (see step 3 / the ⭐ section).
-- **`uv sync` slow the first time** — that's TensorFlow downloading; subsequent runs are cached.
-- **`No matching distribution found for tensorflow` on Python 3.13** — your interpreter is newer than any published TF wheel. Fix with `uv sync --python 3.12` (uv fetches a private 3.12 just for this project; your system 3.13 is untouched), then run everything with `uv run` as normal.
-- **Weights won't load / shape mismatch** — the architecture in `cnn_model.py` must match training exactly; it was copied verbatim from Cell 10. If you changed the model, update `build_custom_cnn()` to match.
-- **Quick offline sanity check** — `uv run python verify_offline.py` runs a dependency-light smoke test of the metadata, prompts, adapters, orchestrator fallback, demo predictor, Grad-CAM helpers, and PDF render (49 checks, no TF/network needed).
-- **Full real-pipeline check** — `uv run python tools/smoke_test.py` loads the *real* weights, runs 5 CNN predictions with Grad-CAM, and does a live Claude call. It fails loudly if it drops to demo mode. Pass image paths to use your own: `uv run python tools/smoke_test.py img1.png img2.png`.
-
----
-
-*Built to extend your trained model with an LLM contextual-reasoning layer. Not for clinical use.*
+This project is licensed under the MIT License.  
+**Educational and research decision-support prototype only. Not certified as a medical device for independent diagnostic use.**
