@@ -15,9 +15,6 @@ instance_type = "m7i-flex.large"
 # Size of the root EBS volume in GiB
 root_volume_size_gb = 30
 
-# Path to the local model weights to upload to S3 (relative to terraform/ directory)
-model_weights_path = "../models/best_model.weights.h5"
-
 # Groq Cloud API Key for live clinical reasoning synthesis
 groq_api_key = "gsk_your_groq_api_key_here"
 groq_model   = "openai/gpt-oss-120b"

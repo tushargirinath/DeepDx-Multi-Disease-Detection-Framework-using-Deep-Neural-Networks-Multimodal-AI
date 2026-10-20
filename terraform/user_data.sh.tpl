@@ -60,16 +60,36 @@ mkdir -p "$APP_DIR"
 git clone -b "${git_branch}" https://github.com/tushargirinath/DeepDx-Multi-Disease-Detection-Framework-using-Deep-Neural-Networks-Multimodal-AI.git "$APP_DIR"
 cd "$APP_DIR"
 
-# 5. Fetch trained CNN weights from S3 using IAM Instance Profile
-echo "--> Fetching model weights from S3 bucket: ${s3_bucket_name}..."
-mkdir -p models
-aws s3 cp "s3://${s3_bucket_name}/models/best_model.weights.h5" models/best_model.weights.h5
+# 5. Model weights sync script & initial check
+mkdir -p "$APP_DIR/models"
 
-# Verify weights downloaded properly
-if [ -f "models/best_model.weights.h5" ]; then
-    echo "--> Model weights verified successfully: $(ls -lh models/best_model.weights.h5)"
+# Create a helper script to sync model weights anytime from S3
+cat << 'EOF_SYNC' > "$APP_DIR/sync_model.sh"
+#!/bin/bash
+set -e
+cd /opt/deepdx
+echo "--> Downloading model weights from s3://${s3_bucket_name}/models/best_model.weights.h5..."
+if aws s3 cp "s3://${s3_bucket_name}/models/best_model.weights.h5" models/best_model.weights.h5; then
+    echo "--> Model weights synced successfully: $(ls -lh models/best_model.weights.h5)"
+    echo "--> Restarting DeepDx container to load updated weights..."
+    docker compose restart
+    echo "--> DeepDx is running with live model weights!"
 else
-    echo "--> WARNING: Model weights not found in S3 yet. Falling back to local/demo mode."
+    echo "--> ERROR: Failed to download weights from S3. Please ensure best_model.weights.h5 is uploaded to ${s3_bucket_name}/models/"
+    exit 1
+fi
+EOF_SYNC
+
+chmod +x "$APP_DIR/sync_model.sh"
+chown ubuntu:ubuntu "$APP_DIR/sync_model.sh"
+
+# Attempt to fetch model weights if they exist in S3 already
+echo "--> Checking S3 for model weights: ${s3_bucket_name}..."
+if aws s3 cp "s3://${s3_bucket_name}/models/best_model.weights.h5" models/best_model.weights.h5 2>/dev/null; then
+    echo "--> Model weights found and downloaded successfully."
+else
+    echo "--> Model weights not yet in S3. The app will boot in standby mode."
+    echo "--> Once you push weights to S3, run '/opt/deepdx/sync_model.sh' on EC2 to load them."
 fi
 
 # 6. Generate production .env file
@@ -85,11 +105,13 @@ ENABLE_BIOGPT=false
 ENABLE_MEDPALM=false
 EOF
 
+chown -R ubuntu:ubuntu "$APP_DIR"
+
 # 7. Start DeepDx via Docker Compose
 echo "--> Building and starting DeepDx container..."
 docker compose up -d --build
 
 echo "=========================================================="
-echo " DeepDx Provisioning Complete!"
+echo " DeepDx EC2 Provisioning Complete!"
 echo " Application is listening on port 8000"
 echo "=========================================================="

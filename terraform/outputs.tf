@@ -3,17 +3,17 @@
 # =====================================================================
 
 output "s3_bucket_name" {
-  description = "Name of the S3 bucket hosting the DeepDx model weights"
+  description = "Name of the S3 bucket created for model weights"
   value       = aws_s3_bucket.model_bucket.id
 }
 
-output "s3_model_weights_uri" {
-  description = "Full S3 URI to the trained CNN model weights"
-  value       = "s3://${aws_s3_bucket.model_bucket.id}/models/best_model.weights.h5"
+output "s3_bucket_arn" {
+  description = "ARN of the S3 bucket"
+  value       = aws_s3_bucket.model_bucket.arn
 }
 
 output "ec2_instance_id" {
-  description = "AWS EC2 Instance ID"
+  description = "AWS EC2 Instance ID (m7i-flex.large)"
   value       = aws_instance.deepdx_app.id
 }
 
@@ -27,7 +27,17 @@ output "deepdx_app_url" {
   value       = "http://${aws_instance.deepdx_app.public_ip}:8000/"
 }
 
-output "s3_manual_upload_command" {
-  description = "Command to manually update weights in S3 whenever you retrain"
-  value       = "aws s3 cp models/best_model.weights.h5 s3://${aws_s3_bucket.model_bucket.id}/models/best_model.weights.h5"
+output "upload_model_command_windows" {
+  description = "PowerShell / Command Prompt command to push model weights to S3 after apply"
+  value       = "aws s3 cp ..\\models\\best_model.weights.h5 s3://${aws_s3_bucket.model_bucket.id}/models/best_model.weights.h5 --region ${var.aws_region}"
+}
+
+output "upload_model_command_linux" {
+  description = "Bash command to push model weights to S3 after apply"
+  value       = "aws s3 cp ../models/best_model.weights.h5 s3://${aws_s3_bucket.model_bucket.id}/models/best_model.weights.h5 --region ${var.aws_region}"
+}
+
+output "ssh_command" {
+  description = "SSH command to connect to the EC2 server (if ssh_public_key was provided)"
+  value       = "ssh -i <path-to-private-key.pem> ubuntu@${aws_instance.deepdx_app.public_ip}"
 }

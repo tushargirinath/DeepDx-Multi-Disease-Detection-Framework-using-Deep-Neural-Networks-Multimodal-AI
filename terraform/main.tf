@@ -1,12 +1,14 @@
 # =====================================================================
 #  DeepDx — Production AWS Infrastructure via Terraform
-#  Components:
-#  - S3 Bucket for trained model weights (AES256 encrypted, private)
-#  - S3 Object upload for models/best_model.weights.h5
-#  - IAM Role & Instance Profile for zero-credential EC2-to-S3 access
-#  - Security Group for Ports 22, 80, 443, 8000
-#  - EC2 Instance (m7i-flex.large, Ubuntu 24.04 LTS, 30 GB gp3)
-#  - Automated User Data deployment script
+#  Target Region: Mumbai (ap-south-1)
+#  Target Instance: m7i-flex.large (4th Gen Intel Xeon, 8 GB RAM)
+#
+#  Components Provisioned:
+#  1. S3 Bucket (Private, AES256 Encrypted, Versioned) for Model Weights
+#  2. IAM Role & Instance Profile (Zero-Secret EC2 -> S3 Access)
+#  3. Security Group (Ports 22, 80, 443, 8000)
+#  4. EC2 Instance (m7i-flex.large, Ubuntu 24.04 LTS, 30 GB gp3)
+#  5. Cloud-Init User Data Script for Bootstrapping
 # =====================================================================
 
 terraform {
@@ -43,7 +45,7 @@ resource "random_string" "suffix" {
 }
 
 # =====================================================================
-#  1. S3 BUCKET FOR MODEL WEIGHTS
+#  1. S3 BUCKET FOR MODEL WEIGHTS (Empty bucket - push done afterwards)
 # =====================================================================
 
 resource "aws_s3_bucket" "model_bucket" {
@@ -79,18 +81,6 @@ resource "aws_s3_bucket_versioning" "model_bucket_versioning" {
   versioning_configuration {
     status = "Enabled"
   }
-}
-
-# Upload the trained CNN weights (best_model.weights.h5) directly to S3
-resource "aws_s3_object" "model_weights" {
-  bucket = aws_s3_bucket.model_bucket.id
-  key    = "models/best_model.weights.h5"
-  source = "${path.module}/${var.model_weights_path}"
-  etag   = fileexists("${path.module}/${var.model_weights_path}") ? filemd5("${path.module}/${var.model_weights_path}") : null
-
-  depends_on = [
-    aws_s3_bucket_public_access_block.model_bucket_block
-  ]
 }
 
 # =====================================================================
@@ -274,7 +264,6 @@ resource "aws_instance" "deepdx_app" {
   }
 
   depends_on = [
-    aws_s3_object.model_weights,
     aws_iam_role_policy_attachment.attach_s3_read
   ]
 }

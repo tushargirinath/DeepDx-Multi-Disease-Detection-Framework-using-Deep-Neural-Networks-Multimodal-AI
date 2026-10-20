@@ -32,12 +32,6 @@ variable "root_volume_size_gb" {
   default     = 30
 }
 
-variable "model_weights_path" {
-  description = "Path to the local CNN weights file to upload to S3"
-  type        = string
-  default     = "../models/best_model.weights.h5"
-}
-
 variable "groq_api_key" {
   description = "Groq Cloud API Key for sub-second clinical LLM reasoning synthesis"
   type        = string
