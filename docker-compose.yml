@@ -1,0 +1,37 @@
+services:
+  deepdx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deepdx-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CNN_WEIGHTS_PATH=models/best_model.weights.h5
+      - CLASS_NAMES_PATH=class_names.json
+      - ENABLE_BIOGPT=false
+      - ENABLE_MEDPALM=false
+    volumes:
+      # Mount models folder so weights can be updated without rebuilding the image
+      - ./models:/app/models:ro
+      # Mount frontend for instant UI updates without image rebuilding
+      - ./frontend:/app/frontend:ro
+      # Mount output reports directory for generated clinical PDFs
+      - ./output_reports:/app/output_reports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          memory: 2G
+        limits:
+          memory: 4G
