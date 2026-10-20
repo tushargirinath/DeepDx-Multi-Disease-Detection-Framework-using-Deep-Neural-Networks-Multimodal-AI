@@ -18,13 +18,13 @@ output "ec2_instance_id" {
 }
 
 output "ec2_public_ip" {
-  description = "Public IPv4 address of the DeepDx EC2 instance"
-  value       = aws_instance.deepdx_app.public_ip
+  description = "Permanent Static Public IPv4 address (Elastic IP)"
+  value       = aws_eip.deepdx_eip.public_ip
 }
 
 output "deepdx_app_url" {
   description = "Live URL to access the DeepDx Diagnostic Console"
-  value       = "http://${aws_instance.deepdx_app.public_ip}:8000/"
+  value       = "http://${aws_eip.deepdx_eip.public_ip}:8000/"
 }
 
 output "upload_model_command_windows" {
@@ -39,5 +39,5 @@ output "upload_model_command_linux" {
 
 output "ssh_command" {
   description = "SSH command to connect to the EC2 server (if ssh_public_key was provided)"
-  value       = "ssh -i <path-to-private-key.pem> ubuntu@${aws_instance.deepdx_app.public_ip}"
+  value       = "ssh -i <path-to-private-key.pem> ubuntu@${aws_eip.deepdx_eip.public_ip}"
 }

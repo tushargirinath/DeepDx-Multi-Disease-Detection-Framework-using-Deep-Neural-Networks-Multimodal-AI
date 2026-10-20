@@ -272,3 +272,17 @@ resource "aws_instance" "deepdx_app" {
     aws_iam_role_policy_attachment.attach_s3_read
   ]
 }
+
+# =====================================================================
+#  5. ELASTIC IP (Permanent Static IPv4)
+# =====================================================================
+
+resource "aws_eip" "deepdx_eip" {
+  instance = aws_instance.deepdx_app.id
+  domain   = "vpc"
+
+  tags = {
+    Name        = "${var.project_name}-static-ip"
+    Environment = var.environment
+  }
+}
