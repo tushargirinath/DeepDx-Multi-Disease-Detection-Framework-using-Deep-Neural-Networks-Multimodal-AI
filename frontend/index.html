@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Multi-Disease Detection — Diagnostic Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="scanlines" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <span class="mark-core"></span>
+    </div>
+    <div class="brand-text">
+      <h1>Multi-Disease Detection</h1>
+      <p>CNN perception · LLM contextual reasoning</p>
+    </div>
+  </div>
+  <div class="status" id="statusPills">
+    <span class="pill pill-muted">connecting…</span>
+  </div>
+</header>
+
+<main class="console">
+  <!-- ============ LEFT: ACQUISITION ============ -->
+  <div class="col-left">
+    <section class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">01 / Acquisition</span>
+        <h2>Load a medical image</h2>
+      </div>
+
+      <label class="dropzone" id="dropzone" for="fileInput">
+        <input type="file" id="fileInput" accept="image/*" hidden />
+        <div class="dz-empty" id="dzEmpty">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+          </svg>
+          <span>Drop an image or <b>browse</b></span>
+          <small>histopathology · MRI · CT · smear · cytology</small>
+        </div>
+        <div class="dz-preview" id="dzPreview" hidden>
+          <img id="previewImg" alt="preview" />
+          <button type="button" class="chip-x" id="clearImg" title="Remove">×</button>
+        </div>
+      </label>
+
+      <details class="context" id="contextBlock">
+        <summary>
+          <span>Patient context</span>
+          <small>optional — improves reasoning</small>
+        </summary>
+        <div class="grid-2">
+          <label class="field"><span>Age</span><input id="age" type="text" placeholder="e.g. 63" /></label>
+          <label class="field"><span>Sex</span>
+            <select id="sex">
+              <option value="">—</option><option>Female</option><option>Male</option><option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label class="field"><span>Symptoms</span><input id="symptoms" type="text" placeholder="e.g. chronic cough, weight loss" /></label>
+        <label class="field"><span>History</span><input id="history" type="text" placeholder="e.g. 40 pack-year smoker" /></label>
+        <label class="field"><span>Notes</span><textarea id="notes" rows="2" placeholder="anything else relevant"></textarea></label>
+      </details>
+
+      <div class="controls">
+        <label class="field inline"><span>Top-k</span>
+          <select id="topk"><option>3</option><option selected>5</option><option>8</option></select>
+        </label>
+        <button class="btn-primary" id="analyzeBtn" disabled>
+          <span class="btn-label">Analyze</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel history" id="historyPanel" hidden>
+      <div class="panel-head">
+        <span class="eyebrow">History</span>
+        <h2>This session</h2>
+      </div>
+      <ul class="hist-list" id="histList"></ul>
+    </section>
+  </div>
+
+  <!-- ============ RIGHT: READOUT ============ -->
+  <div class="col-right">
+    <section class="panel readout">
+      <div class="panel-head">
+        <span class="eyebrow">02 / Readout</span>
+        <h2>Diagnostic interpretation</h2>
+      </div>
+
+      <div class="empty-state" id="emptyState">
+        <div class="es-glyph" aria-hidden="true"></div>
+        <p>Load an image and run <b>Analyze</b> to see the CNN prediction, Grad-CAM attention, and the LLM's contextual reasoning.</p>
+      </div>
+
+      <div class="analyzing" id="analyzing" hidden>
+        <div class="scanbox"><div class="scanline"></div></div>
+        <p id="analyzingText">Running perception + reasoning…</p>
+      </div>
+
+      <div class="results" id="results" hidden>
+        <div class="demo-banner" id="demoBanner" hidden>
+          <b>Demo mode.</b> Model weights are not loaded — this prediction is simulated. Place <code>best_model.weights.h5</code> in <code>models/</code> for real inference.
+        </div>
+
+        <!-- Top prediction -->
+        <div class="verdict">
+          <div class="verdict-main">
+            <div class="verdict-label" id="topLabel">—</div>
+            <div class="verdict-meta" id="topMeta">—</div>
+          </div>
+          <div class="verdict-conf">
+            <span class="conf-num" id="topConf">—</span>
+            <span class="conf-cap">confidence</span>
+          </div>
+        </div>
+
+        <!-- Confidence ladder -->
+        <div class="block">
+          <h3>Confidence ladder</h3>
+          <div class="ladder" id="ladder"></div>
+        </div>
+
+        <!-- Grad-CAM -->
+        <div class="block">
+          <div class="block-head">
+            <h3>Grad-CAM attention</h3>
+            <div class="toggle" id="camToggle" hidden>
+              <button data-view="overlay" class="active">Heatmap</button>
+              <button data-view="original">Original</button>
+            </div>
+          </div>
+          <div class="cam-wrap">
+            <img id="camImg" class="cam-img" alt="Grad-CAM overlay" hidden />
+            <div class="cam-none" id="camNone">Grad-CAM appears here once a model is loaded.</div>
+          </div>
+          <p class="cam-focus" id="camFocus"></p>
+        </div>
+
+        <!-- Evidence chain -->
+        <div class="block">
+          <h3>Contextual-memory evidence chain</h3>
+          <div class="chain">
+            <div class="src src-kb"><span class="src-tag">KB</span><p id="memKb">—</p></div>
+            <div class="src src-bio"><span class="src-tag">BioGPT</span><p id="memBio">—</p></div>
+            <div class="src src-med"><span class="src-tag">Med-PaLM 2</span><p id="memMed">—</p></div>
+            <div class="chain-arrow" aria-hidden="true">→</div>
+            <div class="src src-claude"><span class="src-tag">Groq synthesis</span><p id="engineLine">—</p></div>
+          </div>
+        </div>
+
+        <!-- Interpretation -->
+        <div class="block interp" id="interp"></div>
+
+        <div class="actions">
+          <button class="btn-ghost" id="exportBtn">Export PDF report</button>
+          <span class="timing" id="timing"></span>
+        </div>
+
+        <p class="disclaimer" id="disclaimer"></p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <span>Research &amp; educational prototype — not a medical device. Outputs are decision-support, not diagnosis.</span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

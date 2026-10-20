@@ -1,0 +1,33 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# IDE & Editor folders
+.vscode/
+.idea/
+.gemini/
+
+# Sensitive local config (injected at runtime via docker-compose / secrets)
+.env
+
+# Generated clinical output reports
+output_reports/*.pdf
+
+# Local offline verification and tools
+tools/
+verify_offline.py
+sample_output.md
+sample_prompt.md

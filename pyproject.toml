@@ -1,0 +1,50 @@
+[project]
+name = "multi-disease-detection-app"
+version = "0.1.0"
+description = "Multi-Disease Detection Framework — CNN visual features + LLM contextual reasoning (Claude, BioGPT, Med-PaLM 2)"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # --- Web / API ---
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "python-dotenv>=1.0",
+    # --- Imaging / numerics ---
+    "pillow>=10.3",
+    "numpy>=1.26",
+    # --- Deep learning (loads best_model.weights.h5) ---
+    # Python 3.13 support: TensorFlow began shipping cp313 wheels from the 2.19
+    # line onward. This is a FLOOR (not an exact pin) on purpose, so uv/pip
+    # auto-selects the newest build that actually has a wheel for your
+    # interpreter + platform (on native Windows this resolves to the CPU build).
+    # The "<3" guard avoids an unforeseen TF 3.0 API break.
+    "tensorflow>=2.19,<3",
+    # --- LLM (Claude live reasoning) ---
+    "anthropic>=0.39",
+    # --- PDF clinical report export ---
+    "reportlab>=4.2",
+]
+
+[project.optional-dependencies]
+# Enable the REAL Microsoft BioGPT contextual-memory source.
+# Heavy (torch + model download ~1.5 GB). Install only when you want live BioGPT:
+#   uv sync --extra biogpt
+biogpt = [
+    "torch>=2.2",
+    "transformers>=4.42",
+    "sacremoses>=0.1.1",
+]
+
+[tool.uv]
+# This is an application, not a library — don't try to build/install the project itself.
+package = false
+required-environments = [
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+[tool.black]
+line-length = 100
