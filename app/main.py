@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import ROOT_DIR, get_settings
 from app.llm import disease_metadata
+from app.llm.image_validator import ImageValidator
 from app.llm.orchestrator import ReasoningOrchestrator
 from app.ml import gradcam
 from app.ml.cnn_model import DiseaseClassifier
@@ -39,6 +40,8 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
     app.state.classifier = DiseaseClassifier(settings)
     app.state.orchestrator = ReasoningOrchestrator(settings)
+    app.state.image_validator = ImageValidator(settings)
+    logger.info("Image validation: %s", "enabled" if app.state.image_validator.available else "disabled")
     logger.info("Ready. %s", app.state.classifier.health())
     yield
 
@@ -63,6 +66,11 @@ def health():
             "biogpt_enabled": s.enable_biogpt,
             "medpalm_enabled": s.enable_medpalm,
         },
+        "image_validation": {
+            "enabled": s.enable_image_validation,
+            "available": app.state.image_validator.available,
+            "model": s.image_validation_model if app.state.image_validator.available else None,
+        },
     }
 
 
@@ -82,6 +90,22 @@ async def analyze(
 
     clf = app.state.classifier
     orch = app.state.orchestrator
+    validator = app.state.image_validator
+
+    # --- Image Validation Gate ---
+    mime_type = file.content_type or "image/png"
+    validation = validator.validate(image_bytes, mime_type)
+    if not validation.get("valid", True):
+        logger.info("Image rejected by validation: %s", validation.get("reason", "unknown"))
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "invalid_medical_image",
+                "message": "The uploaded image does not appear to be a valid medical image.",
+                "reason": validation.get("reason", "Not recognized as a medical/clinical image."),
+                "suggestion": "Please upload a histopathology slide, X-ray, CT scan, MRI, dermatoscopy image, or other clinical image.",
+            },
+        )
 
     t0 = time.time()
     try:
