@@ -314,3 +314,46 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   .mark-core,.scanline{animation:none}
   .rung-fill{transition:none}
 }
+
+/* ---- Image Validation Error ---- */
+.validation-error{
+  text-align:center;padding:2rem 1.5rem;
+  animation:ve-in .4s ease-out both;
+}
+@keyframes ve-in{
+  from{opacity:0;transform:translateY(12px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.ve-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,#fef3c7,#fde68a);
+  color:#92400e;margin-bottom:1rem;
+}
+.ve-title{
+  font-family:var(--f-display);font-size:1.3rem;font-weight:700;
+  color:#92400e;margin-bottom:.5rem;
+}
+.ve-reason{
+  font-size:.95rem;color:var(--ink);line-height:1.6;
+  max-width:420px;margin:0 auto .75rem;
+}
+.ve-suggestion{
+  font-size:.85rem;color:var(--sub);line-height:1.5;
+  max-width:420px;margin:0 auto 1.25rem;
+  font-style:italic;
+}
+.ve-accepted{
+  border-top:1px solid var(--line);padding-top:1rem;
+}
+.ve-accepted>span{
+  font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--sub);font-weight:600;display:block;margin-bottom:.5rem;
+}
+.ve-tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.ve-tag{
+  font-family:var(--f-mono);font-size:.72rem;
+  padding:3px 10px;border-radius:99px;
+  background:var(--teal-soft);color:var(--teal-deep);
+  font-weight:500;border:1px solid rgba(14,154,167,.2);
+}

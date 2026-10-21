@@ -43,6 +43,12 @@ async function loadHealth() {
       pills.push(["pill-muted", "groq offline"]);
     }
     if (h.llm.biogpt_enabled) pills.push(["pill-ok", "biogpt live"]);
+    // Image validation gate status
+    if (h.image_validation && h.image_validation.available) {
+      pills.push(["pill-ok", "image gate"]);
+    } else if (h.image_validation && h.image_validation.enabled) {
+      pills.push(["pill-warn", "image gate off"]);
+    }
     renderPills(pills);
   } catch (e) {
     renderPills([["pill-warn", "server unreachable"]]);
@@ -102,7 +108,11 @@ async function analyze() {
     const r = await fetch("/api/analyze", { method: "POST", body: fd });
     if (!r.ok) {
       const err = await r.json().catch(() => ({ detail: r.statusText }));
-      throw new Error(err.detail || "Analysis failed");
+      // Check if this is an image validation rejection
+      if (err.detail && typeof err.detail === "object" && err.detail.error === "invalid_medical_image") {
+        throw { isValidationError: true, detail: err.detail };
+      }
+      throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail) || "Analysis failed");
     }
     const data = await r.json();
     state.last = data;
@@ -111,8 +121,37 @@ async function analyze() {
   } catch (e) {
     $("analyzing").hidden = true;
     $("emptyState").hidden = false;
-    $("emptyState").innerHTML =
-      `<div class="es-glyph"></div><p><b>Something went wrong.</b><br>${e.message}</p>`;
+    if (e.isValidationError) {
+      const d = e.detail;
+      $("emptyState").innerHTML =
+        `<div class="validation-error">
+          <div class="ve-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 9v4m0 4h.01"/>
+              <path d="M3.262 17.094L10.586 3.17a1.6 1.6 0 012.828 0l7.324 13.924A1.6 1.6 0 0119.324 20H4.676a1.6 1.6 0 01-1.414-2.906z"/>
+            </svg>
+          </div>
+          <h3 class="ve-title">Not a Valid Medical Image</h3>
+          <p class="ve-reason">${d.reason || "The image could not be recognized as a medical or clinical image."}</p>
+          <p class="ve-suggestion">${d.suggestion || "Please upload a histopathology slide, X-ray, CT, MRI, or other clinical image."}</p>
+          <div class="ve-accepted">
+            <span>Accepted formats:</span>
+            <div class="ve-tags">
+              <span class="ve-tag">Histopathology</span>
+              <span class="ve-tag">X-Ray</span>
+              <span class="ve-tag">CT Scan</span>
+              <span class="ve-tag">MRI</span>
+              <span class="ve-tag">Dermatoscopy</span>
+              <span class="ve-tag">Cytology</span>
+              <span class="ve-tag">Ultrasound</span>
+              <span class="ve-tag">Mammography</span>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      $("emptyState").innerHTML =
+        `<div class="es-glyph"></div><p><b>Something went wrong.</b><br>${e.message}</p>`;
+    }
   } finally {
     btn.disabled = false; btn.classList.remove("loading");
   }

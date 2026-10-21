@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     enable_biogpt: bool = False
     enable_medpalm: bool = False
 
+    # --- Image validation (Vision LLM gate via OpenRouter) ---
+    enable_image_validation: bool = True
+    image_validation_model: str = "google/gemma-4-26b-a4b-it:free"
+    image_validation_fallbacks: list[str] = [
+        "minimax/minimax-m3.1-flash:free",
+        "nvidia/nemotron-3.5-super-vl:free",
+    ]
+
     # --- Server ---
     host: str = "127.0.0.1"
     port: int = 8000
