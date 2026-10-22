@@ -16,14 +16,18 @@ The application is deployed live in **AWS Mumbai (`ap-south-1`)**:
 
 | Attribute | Production Configuration |
 |---|---|
-| **Live Web Console** | **[https://deepdx.myvnc.com](https://deepdx.myvnc.com)** 🔒 *(HTTPS with trusted SSL)* |
-| **API Health Status** | **[https://deepdx.myvnc.com/api/health](https://deepdx.myvnc.com/api/health)** |
+| **Direct HTTP Web Console** | **[http://65.2.235.24:8000](http://65.2.235.24:8000)** ⚡ *(Direct Static IP Access)* |
+| **Direct API Health Status** | **[http://65.2.235.24:8000/api/health](http://65.2.235.24:8000/api/health)** |
+| **Domain (HTTPS / SSL)** | **[https://deepdx.myvnc.com](https://deepdx.myvnc.com)** 🔒 *(Automated Let's Encrypt TLS via Caddy)* |
 | **Permanent Static IP** | `65.2.235.24` *(AWS Elastic IP)* |
 | **Cloud Infrastructure** | AWS EC2 `m7i-flex.large` (2 vCPUs, 8 GB RAM, 4th Gen Intel Xeon) |
 | **Model Storage** | AWS S3 (`deepdx-models-production-dbmbzc`), AES-256 encrypted |
 | **SSL/TLS Reverse Proxy**| Caddy Reverse Proxy with automated Let's Encrypt SSL certificates |
+| **Vision Triage Gate** | OpenRouter Multimodal Vision (`google/gemma-4-26b-a4b-it:free`) |
 | **IaC Provisioning** | Terraform (`terraform/` directory) |
 | **Cloud Region** | AWS Mumbai (`ap-south-1`) |
+
+> 💡 **Tip:** If your local ISP (e.g., Airtel Broadband) blocks free dynamic DNS domains (`*.myvnc.com`), access the app directly via the static IP: **[http://65.2.235.24:8000](http://65.2.235.24:8000)** or enable Secure DNS (Google 8.8.8.8 / Cloudflare 1.1.1.1) in your browser settings.
 
 ---
 
@@ -39,6 +43,7 @@ DeepDx-Multi-Disease-Detection-Framework/
 │   │   ├── cnn_model.py        # Custom 5-block CNN architecture, weight loading, predict()
 │   │   └── gradcam.py          # Grad-CAM heatmap generator + plain-English localization
 │   ├── llm/
+│   │   ├── image_validator.py  # Pre-inference vision triage gate via OpenRouter (Gemma 4 free tier)
 │   │   ├── groq_client.py      # Sub-second live clinical reasoning via Groq Cloud API
 │   │   ├── claude_client.py    # Anthropic Claude 3.5/Sonnet integration + JSON extractor
 │   │   ├── disease_metadata.py # Structured Knowledge Base for all 30 disease classes [KB]
@@ -96,20 +101,32 @@ The CNN classifier and medical knowledge base cover 30 classes across major orga
 ## How the Hybrid Reasoning Pipeline Works
 
 ```
-   Medical Image ─► Custom CNN (Perception) ─► Top-k Probabilities + Grad-CAM Attention
-                                                         │
-                ┌────────────────────────────────────────┼────────────────────────────────────────┐
-                ▼                                        ▼                                        ▼
-          [KB] Knowledge Base                      [BioGPT] Biomedical                      [Med-PaLM] Clinical
-     (organ, modality, severity)                   narrative context                        workup context
-                └────────────────────────────────────────┼────────────────────────────────────────┘
-                                                         ▼
-                                          Groq LLM Reasoning Synthesis
-                                             (openai/gpt-oss-120b)
-                                                         ▼
-                                Calibrated, Source-Attributed Clinical Report
-                                                         ▼
-                               Web Console  +  Downloadable Clinical PDF Report
+   Uploaded Image
+         │
+         ▼
+ ┌──────────────────────────────────────────────────────────────┐
+ │  Multimodal Vision Triage Gate (Google Gemma 4 / OpenRouter) │
+ └───────────────────────────────┬──────────────────────────────┘
+                                 │
+           ┌─────────────────────┴─────────────────────┐
+           ▼ (Invalid non-medical image)               ▼ (Valid medical image)
+    HTTP 422 Rejection                          Custom CNN (Perception)
+ (Reason + Modality Guidance)                          │
+                                                       ▼
+                                         Top-k Probabilities + Grad-CAM Heatmap
+                                                       │
+                 ┌─────────────────────────────────────┼─────────────────────────────────────┐
+                 ▼                                     ▼                                     ▼
+           [KB] Knowledge Base                   [BioGPT] Biomedical                   [Med-PaLM] Clinical
+      (organ, modality, severity)                narrative context                     workup context
+                 └─────────────────────────────────────┼─────────────────────────────────────┘
+                                                       ▼
+                                        Groq LLM Reasoning Synthesis
+                                           (openai/gpt-oss-120b)
+                                                       ▼
+                              Calibrated, Source-Attributed Clinical Report
+                                                       ▼
+                             Web Console  +  Downloadable Clinical PDF Report
 ```
 
 ---
