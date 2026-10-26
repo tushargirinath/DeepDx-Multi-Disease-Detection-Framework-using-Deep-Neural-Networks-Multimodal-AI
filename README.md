@@ -98,6 +98,18 @@ The CNN classifier and medical knowledge base cover 30 classes across major orga
 
 ---
 
+## 📊 Dataset Access
+
+The deep learning model is trained and evaluated on the **Multi-Cancer Dataset** containing histopathology, cytology, MRI, and CT imaging across all 30 disease classes:
+
+- **Kaggle Dataset**: **[Multi-Cancer Dataset (Version 1) on Kaggle](https://www.kaggle.com/datasets/obulisainaren/multi-cancer/versions/1/data)**  
+- **Direct Access URL**: [https://www.kaggle.com/datasets/obulisainaren/multi-cancer/versions/1/data](https://www.kaggle.com/datasets/obulisainaren/multi-cancer/versions/1/data)  
+- **Dataset Author**: Obulisainaren  
+- **Modalities Included**: Histopathology (H&E), Brain MRI, Kidney CT, Oral biopsy, Cervical cytology, Blood smear  
+- **Classes**: 30 distinct categories across oncology and neurology  
+
+---
+
 ## How the Hybrid Reasoning Pipeline Works
 
 ```
