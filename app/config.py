@@ -41,10 +41,11 @@ class Settings(BaseSettings):
 
     # --- Image validation (Vision LLM gate via OpenRouter) ---
     enable_image_validation: bool = True
-    image_validation_model: str = "google/gemma-4-26b-a4b-it:free"
+    image_validation_model: str = "nvidia/nemotron-3.5-super-vl:free"
     image_validation_fallbacks: list[str] = [
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-31b-it:free",
         "minimax/minimax-m3.1-flash:free",
-        "nvidia/nemotron-3.5-super-vl:free",
     ]
 
     # --- Server ---
