@@ -5,7 +5,7 @@ Verifies that an uploaded image is a legitimate medical/clinical image
 (histopathology, X-ray, CT, MRI, dermatoscopy, cytology, ultrasound, etc.)
 before running CNN inference.
 
-Uses Google Gemma 4 26B A4B (free) with automatic fallback to Minimax / Nemotron
+Uses multimodal models (NVIDIA Nemotron 3.5 Super VL, Google Gemma 4 26B/31B)
 via OpenRouter. If an image is rejected (e.g., screenshots, selfies, landscapes),
 the API returns HTTP 422 with actionable guidance.
 """
@@ -24,32 +24,38 @@ logger = logging.getLogger("image_validator")
 
 OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
-VALIDATION_PROMPT = """You are an automated medical diagnostic filter. Your ONLY task is to check if this image is a legitimate medical or clinical image.
+VALIDATION_PROMPT = """You are a strict automated medical image triage system. Check if this image is a legitimate clinical medical scan or pathology slide.
 
-VALID MEDICAL IMAGES include:
+CRITICAL RULES:
+- Photos of people, faces, selfies, portraits, casual body shots, clothing, everyday objects, and room/vehicle interiors are STRICTLY INVALID.
+- Screenshots of computer screens, web browsers, software, or phones are STRICTLY INVALID.
+- Landscapes, animals, food, memes, art, and drawings are STRICTLY INVALID.
+
+VALID CLINICAL IMAGES include ONLY:
 - Histopathology tissue slides (H&E stain, IHC, biopsy)
 - X-rays (chest, dental, musculoskeletal, etc.)
 - CT scans or MRI scans
 - Ultrasound images
-- Dermatoscopy or clinical photographs of skin lesions/rashes
+- Dermatoscopy or clinical close-up photographs of skin lesions/rashes
 - Cytology slides (Pap smear, blood smear)
 - Fundoscopy / retinal photography
 - Mammography
 - Endoscopy images
-- Clinical surgical/wound photographs
 
-INVALID IMAGES include:
-- Screenshots of computer screens, web browsers, emails, software, or code
-- Text documents, receipts, book pages, PDFs
-- Selfies, casual portraits, family photos
-- Food, animals, pets, nature, landscapes
-- Memes, artwork, drawings, cartoons, icons
-- Random everyday household or office objects
-
-Respond with ONLY a valid JSON object (no markdown, no extra text):
-{"valid": true, "category": "<type of medical image>", "reason": "<brief description>"}
+You MUST respond with valid JSON:
+{"valid": false, "reason": "<clear explanation of why this image is not a medical scan>"}
 or
-{"valid": false, "reason": "<specific explanation of why this image is not a medical image>"}"""
+{"valid": true, "category": "<type of medical image>", "reason": "<brief description>"}"""
+
+# Non-medical keyword indicators
+NON_MEDICAL_KEYWORDS = [
+    "not a medical", "not medical", "invalid", "false",
+    "selfie", "portrait", "person", "man", "woman", "face", "hair",
+    "beard", "headshot", "casual photo", "photo of a man", "photo of a person",
+    "vehicle", "car", "bus", "train", "seat", "interior", "hoodie", "shirt",
+    "screenshot", "webpage", "browser", "desktop", "interface", "monitor",
+    "food", "animal", "pet", "dog", "cat", "nature", "landscape", "drawing"
+]
 
 
 class ImageValidator:
@@ -60,10 +66,11 @@ class ImageValidator:
         self.api_key = settings.openrouter_api_key or settings.groq_api_key
         self.enabled = settings.enable_image_validation
         
-        # Primary model is Google Gemma 4 26B (free), with zero-downtime fallbacks
-        self.models = [settings.image_validation_model] + [
+        # OpenRouter enforces a strict maximum of 3 items in the 'models' fallback array
+        all_models = [settings.image_validation_model] + [
             m for m in settings.image_validation_fallbacks if m != settings.image_validation_model
         ]
+        self.models = all_models[:3]
 
     @property
     def available(self) -> bool:
@@ -123,26 +130,28 @@ class ImageValidator:
                 },
             ],
             "temperature": 0.1,
-            "max_tokens": 250,
+            "max_tokens": 1000,
         }
 
         req_data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(OPENROUTER_ENDPOINT, data=req_data, headers=headers)
 
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=35) as resp:
             res_body = json.loads(resp.read().decode("utf-8"))
 
         model_used = res_body.get("model", "unknown")
         msg = res_body["choices"][0]["message"]
         
-        # OpenRouter models may return text in content, reasoning, or reasoning_details
-        raw_text = msg.get("content") or ""
-        if not raw_text and msg.get("reasoning"):
-            raw_text = msg.get("reasoning") or ""
-        if not raw_text and "reasoning_details" in msg:
-            raw_text = "".join(b.get("text", "") for b in msg["reasoning_details"] if isinstance(b, dict))
+        # Combine content and reasoning for full analysis
+        content_text = msg.get("content") or ""
+        reasoning_text = msg.get("reasoning") or ""
+        if "reasoning_details" in msg:
+            reasoning_text += "".join(b.get("text", "") for b in msg["reasoning_details"] if isinstance(b, dict))
 
-        parsed = self._parse_response(raw_text)
+        full_text = f"{content_text}\n{reasoning_text}".strip()
+
+        # Try parsing structured JSON first from content, then reasoning, then combined
+        parsed = self._parse_response(content_text) or self._parse_response(reasoning_text) or self._parse_response(full_text)
         if parsed is not None:
             parsed["model_used"] = model_used
             logger.info(
@@ -151,16 +160,21 @@ class ImageValidator:
             )
             return parsed
 
-        # Fallback keyword scan if JSON formatting was loose
-        lower_text = raw_text.lower()
-        if "valid\": false" in lower_text or "not a medical" in lower_text or "screenshot" in lower_text:
+        # Fallback keyword scan if JSON formatting was incomplete
+        lower_text = full_text.lower()
+        
+        # If any non-medical keywords are mentioned in model's observations:
+        matched_indicators = [kw for kw in NON_MEDICAL_KEYWORDS if kw in lower_text]
+        if matched_indicators:
+            detected_type = matched_indicators[0]
+            logger.info("Image rejected by fallback keyword scan: detected '%s'", detected_type)
             return {
                 "valid": False,
-                "reason": "Image was identified as non-medical content.",
+                "reason": f"Image was identified as non-medical content ({detected_type}).",
                 "model_used": model_used,
             }
 
-        logger.warning("Could not parse validator JSON response from [%s]: %s", model_used, raw_text[:200])
+        logger.warning("Could not parse validator JSON response from [%s]: %s", model_used, full_text[:200])
         return {"valid": True, "skipped": True, "reason": "Unparsed validation response (allowed)."}
 
     @staticmethod
@@ -196,5 +210,14 @@ class ImageValidator:
                     return data
             except (json.JSONDecodeError, ValueError):
                 pass
+
+        # 4. Search for regex pattern {"valid": false ...}
+        pattern = r'\{\s*"valid"\s*:\s*(false|true)\s*,\s*"reason"\s*:\s*"([^"]+)"\s*\}'
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return {
+                "valid": match.group(1).lower() == "true",
+                "reason": match.group(2)
+            }
 
         return None

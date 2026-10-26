@@ -26,6 +26,11 @@ models/*.h5
 models/*.keras
 !models/best_model.weights.h5
 
+# --- Datasets ---
+Multiple_disease_dataset/
+datasets/
+data/
+
 # --- Runtime Artifacts & Generated Clinical Reports ---
 runtime/
 output_reports/
